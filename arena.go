@@ -92,7 +92,7 @@ func main() {
         fmt.Println()
         fmt.Printf("-- Round %d\n", round)
 
-        send(bot, "settings starting_armies 5") // TODO
+        send(bot, fmt.Sprintf("settings starting_armies %d", starting_armies(state, bot)))
 
         update_map(state, bot)
 
@@ -313,7 +313,7 @@ func placements(state *State, bot *Bot) []*Placement {
 
     commands := strings.Split(line, ",")
 
-    remaining_armies := int64(5) // TODO
+    remaining_armies := starting_armies(state, bot)
 
     for _, command := range commands {
         if strings.TrimSpace(command) == "" {
@@ -473,4 +473,24 @@ func apply(state *State, bot *Bot, placements []*Placement, movements []*Movemen
     }
 
     return state
+}
+
+func starting_armies(state *State, bot *Bot) int64 {
+    armies := int64(5)
+
+    for _, super_region := range state.super_regions {
+        complete := true
+        for _, subregion := range super_region.regions {
+            if subregion.owner != bot.name {
+                complete = false
+                break
+            }
+        }
+
+        if complete {
+            armies += super_region.reward
+        }
+    }
+
+    return armies
 }
