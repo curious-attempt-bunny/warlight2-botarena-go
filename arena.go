@@ -10,6 +10,7 @@ import "strings"
 import "strconv"
 import "flag"
 import "path/filepath"
+import "math"
 
 type Bot struct {
     name string
@@ -83,7 +84,10 @@ func main() {
 
     pick_regions(state, bot, []int64{3, 4, 7, 15, 17})
 
-    for i := 0; i < 2; i++ { // TODO
+    for round := 1; round <= 45; round++ { // TODO
+        fmt.Println()
+        fmt.Printf("-- Round %d\n", round)
+
         send(bot, "settings starting_armies 5") // TODO
 
         update_map(state, bot)
@@ -326,15 +330,15 @@ func placements(state *State, bot *Bot) []*Placement {
         region := state.regions[region_id]
 
         if armies <= 0 {
-            log.Fatal("Must place a positive number of armies")
+            log.Fatal(fmt.Sprintf("Must place a positive number of armies: %s", command))
         }
 
         if armies > remaining_armies {
-            log.Fatal("Trying to place more armies than are available")
+            log.Fatal(fmt.Sprintf("Trying to place more armies than are available: %s", command))
         }
 
         if region.owner != bot.name {
-            log.Fatal("Must place armies on an owned region")
+            log.Fatal(fmt.Sprintf("Must place armies on an owned region: %s", command))
         }
 
         placement := &Placement{
@@ -381,11 +385,15 @@ func movements(state *State, bot *Bot) []*Movement {
         region_to := state.regions[to_id]
 
         if armies <= 0 {
-            log.Fatal("Must move a positive number of armies")
+            log.Fatal(fmt.Sprintf("Must move a positive number of armies: %s", command))
+        }
+
+        if region_to.owner != bot.name && armies == 1 {
+            log.Fatal(fmt.Sprintf("Trying to attack with just one army: %s", command))
         }
 
         if region_from.owner != bot.name {
-            log.Fatal("Must own the source region at the start of the turn")
+            log.Fatal(fmt.Sprintf("Must own the source region at the start of the turn: %s", command))
         }
 
         movement := &Movement{
@@ -413,7 +421,53 @@ func apply(state *State, bot *Bot, placements []*Placement, movements []*Movemen
             movement.region_to.armies += movement.armies
             movement.region_from.armies -= movement.armies
         } else {
-            // TODO
+            // Attack minimums to win (worst luck):
+            // 2x1 -- (-1) --> 1
+            // 3x2 -- (-1) --> 2
+            // 5x3 -- (-2) --> 3
+            // 7x4 -- (-3) --> 4
+            // 9x5 -- (-4) --> 5
+            // 11x6 -- (-4) --> 7
+            // 13x7 -- (-5) --> 8
+            // 15x8 -- (-6) --> 9
+            // 17x9 -- (-7) --> 10
+            defending_armies_killed := (movement.armies+1)/2
+            if movement.armies < 2 {
+                defending_armies_killed = 0
+            } else if movement.armies == 2 {
+                defending_armies_killed = 1
+            }
+
+            defending_armies := float64(movement.region_to.armies)
+            luck := float64(0.16)
+            killed := ((0.7 * defending_armies) * (1 - luck)) + (defending_armies * luck)
+            attacking_armies_killed := int64(math.Ceil(killed-0.5))
+            if attacking_armies_killed > movement.armies {
+                attacking_armies_killed = movement.armies
+            }
+
+            // fmt.Printf("%dx%d -- (-%d vs %g) --> %d\n", movement.armies, movement.region_to.armies, attacking_armies_killed, killed, movement.armies - attacking_armies_killed)
+
+            if defending_armies_killed < movement.region_to.armies {
+                // lost the attack
+
+                movement.region_to.armies -= defending_armies_killed
+                if movement.region_to.armies < 1 {
+                    movement.region_to.armies = 1
+                }
+                movement.region_from.armies -= attacking_armies_killed
+            } else if attacking_armies_killed == movement.armies {
+                // won the attack but no armies left to capture with
+
+                movement.region_to.armies = 1
+                movement.region_from.armies -= attacking_armies_killed
+            } else {
+                // won the attack
+
+                movement.region_to.owner = bot.name
+                movement.region_to.armies = movement.armies - attacking_armies_killed
+                movement.region_from.armies -= movement.armies
+            }
         }
     }
 
