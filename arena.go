@@ -10,6 +10,7 @@ import "strings"
 import "strconv"
 
 type Bot struct {
+    name string
     process *exec.Cmd
     stdout *bufio.Reader
     stdin io.WriteCloser
@@ -36,14 +37,26 @@ type SuperRegion struct {
     reward int64
 }
 
+type Placement struct {
+    region *Region
+    armies int64
+}
+
+type Movement struct {
+    region_from *Region
+    region_to *Region
+    armies int64
+}
+
 func main() {
     bot := launch("./fake_bot.sh")
+    bot.name = "player1"
 
     send(bot, "settings timebank 10000")
     send(bot, "settings time_per_move 500")
     send(bot, "settings max_rounds 45")
-    send(bot, "settings your_bot player1")
-    send(bot, "settings opponent_bot player2")
+    send(bot, fmt.Sprintf("settings your_bot %s", bot.name))
+    send(bot, "settings opponent_bot player2") // TODO
 
     // hard-coded map data to get started with
     terrain := []string {
@@ -59,7 +72,30 @@ func main() {
         state = parse(state, line)
     }
 
-    pick_regions(bot, []int64{3, 4, 7, 15, 17})
+    pick_regions(state, bot, []int64{3, 4, 7, 15, 17})
+
+    for {
+        send(bot, "settings starting_armies 5") // TODO
+
+        update_map(state, bot)
+
+        send(bot, "opponent_moves")
+
+        send(bot, "go place_armies 10000")
+
+        placements := placements(state, bot)
+
+        send(bot, "go attack/transfer 10000")
+
+        movements := movements(state, bot)
+
+        _ = placements // TODO
+        _ = movements // TODO
+
+        if game_over(state) {
+            break
+        }
+    }
 }
 
 func launch(launch_script string) *Bot {
@@ -99,14 +135,14 @@ func receive(bot *Bot) string {
     return line
 }
 
-func pick_regions(bot *Bot, regions []int64) {
+func pick_regions(state *State, bot *Bot, regions []int64) {
     // TODO don't hardcode this
     send(bot, "settings starting_regions 3 4 7 15 17")
 
     remaining_regions := regions
 
     // simulate that the bot goes first
-    remaining_regions = pick_a_region(bot, remaining_regions)
+    remaining_regions = pick_a_region(state, bot, remaining_regions)
 
     for {
         if len(remaining_regions) == 0 {
@@ -117,12 +153,12 @@ func pick_regions(bot *Bot, regions []int64) {
         remaining_regions = discard_a_region(remaining_regions)
         remaining_regions = discard_a_region(remaining_regions)
 
-        remaining_regions = pick_a_region(bot, remaining_regions)
-        remaining_regions = pick_a_region(bot, remaining_regions)
+        remaining_regions = pick_a_region(state, bot, remaining_regions)
+        remaining_regions = pick_a_region(state, bot, remaining_regions)
     }
 }
 
-func pick_a_region(bot *Bot, regions []int64) []int64 {
+func pick_a_region(state *State, bot *Bot, regions []int64) []int64 {
     region_strs := make([]string, len(regions))
     for i, id := range regions {
         region_strs[i] = fmt.Sprintf("%d", id)
@@ -149,6 +185,8 @@ func pick_a_region(bot *Bot, regions []int64) []int64 {
     new_regions := make([]int64, len(regions)-1)
     copy(new_regions[:], regions[0:index])
     copy(new_regions[index:], regions[index+1:])
+
+    state.regions[region_id].owner = bot.name
 
     return new_regions
 }
@@ -216,4 +254,24 @@ func parse(state *State, line string) *State {
     }
 
     return state
+}
+
+func game_over(state *State) bool {
+    return true // TODO
+}
+
+func update_map(state *State, bot *Bot) {
+    // TODO
+}
+
+func placements(state *State, bot *Bot) []*Placement {
+    items := []*Placement{}
+
+    return items
+}
+
+func movements(state *State, bot *Bot) []*Movement {
+    items := []*Movement{}
+
+    return items
 }
