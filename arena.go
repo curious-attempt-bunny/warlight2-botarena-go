@@ -275,7 +275,23 @@ func game_over(state *State) bool {
 }
 
 func update_map(state *State, bot *Bot) {
-    // TODO
+    output := "update map"
+    for _, region := range state.regions {
+        visible := region.owner == bot.name
+        if !visible {
+            for _, neighbour := range region.neighbours {
+                if neighbour.owner == bot.name {
+                    visible = true
+                    break
+                }
+            }
+        }
+
+        if visible {
+            output = fmt.Sprintf("%s %d %s %d", output, region.id, region.owner, region.armies)
+        }
+    }
+    send(bot, output)
 }
 
 func placements(state *State, bot *Bot) []*Placement {
