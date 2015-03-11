@@ -275,7 +275,7 @@ func game_over(state *State) bool {
 }
 
 func update_map(state *State, bot *Bot) {
-    output := "update map"
+    output := "update_map"
     for _, region := range state.regions {
         visible := region.owner == bot.name
         if !visible {
