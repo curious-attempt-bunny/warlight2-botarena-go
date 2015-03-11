@@ -85,6 +85,10 @@ func main() {
     pick_regions(state, bot, []int64{3, 4, 7, 15, 17})
 
     for round := 1; round <= 45; round++ { // TODO
+        if game_over(state) {
+            break
+        }
+
         fmt.Println()
         fmt.Printf("-- Round %d\n", round)
 
@@ -103,10 +107,6 @@ func main() {
         movements := movements(state, bot)
 
         state = apply(state, bot, placements, movements)
-
-        if game_over(state) {
-            break
-        }
     }
 }
 
@@ -388,9 +388,10 @@ func movements(state *State, bot *Bot) []*Movement {
             log.Fatal(fmt.Sprintf("Must move a positive number of armies: %s", command))
         }
 
-        if region_to.owner != bot.name && armies == 1 {
-            log.Fatal(fmt.Sprintf("Trying to attack with just one army: %s", command))
-        }
+        // Yes.  It's sensible to "attack" with one army if your bot considers it to have been captured with a previous attack.
+        // if region_to.owner != bot.name && armies == 1 {
+        //     log.Fatal(fmt.Sprintf("Trying to attack with just one army: %s", command))
+        // }
 
         if region_from.owner != bot.name {
             log.Fatal(fmt.Sprintf("Must own the source region at the start of the turn: %s", command))
