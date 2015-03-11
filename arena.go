@@ -16,7 +16,7 @@ type Bot struct {
 }
 
 func main() {
-    bot := launch("./broken_bot.sh")
+    bot := launch("./fake_bot.sh")
 
     send(bot, "settings timebank 10000")
     send(bot, "settings time_per_move 500")
@@ -57,8 +57,8 @@ func launch(launch_script string) *Bot {
 }
 
 func send(bot *Bot, command string) {
-    // fmt.Fprintf(os.Stderr, ">> %s\n", command)
-    // io.WriteString(bot.stdin, fmt.Sprintf("%s\n", command))
+    fmt.Fprintf(os.Stderr, ">> %s\n", command)
+    io.WriteString(bot.stdin, fmt.Sprintf("%s\n", command))
 }
 
 func receive(bot *Bot) string {
@@ -94,6 +94,12 @@ func pick_regions(bot *Bot, regions []int64) {
 }
 
 func pick_a_region(bot *Bot, regions []int64) []int64 {
+    region_strs := make([]string, len(regions))
+    for i, id := range regions {
+        region_strs[i] = fmt.Sprintf("%d", id)
+    }
+    send(bot, fmt.Sprintf("pick_starting_region 10000 %s", strings.Join(region_strs[:], " ")))
+
     line := receive(bot)
 
     region_id, err := strconv.ParseInt(line, 10, 0)
