@@ -364,7 +364,44 @@ func movements(state *State, bot *Bot) []*Movement {
     items := []*Movement{}
 
     line := receive(bot)
-    _ = line
+
+    if line == "No moves" {
+        return items
+    }
+
+    commands := strings.Split(line, ",")
+
+    for _, command := range commands {
+        if strings.TrimSpace(command) == "" {
+            continue
+        }
+        parts := strings.Split(command, " ")
+        if !(len(parts) == 5 && parts[1] == "attack/transfer" && parts[0] == bot.name) {
+            log.Fatal(fmt.Sprintf("Wrong placement format: %s", command))
+        }
+
+        from_id, _ := strconv.ParseInt(parts[2], 10, 0)
+        to_id, _ := strconv.ParseInt(parts[3], 10, 0)
+        armies, _ := strconv.ParseInt(parts[4], 10, 0)
+
+        region_from := state.regions[from_id]
+        region_to := state.regions[to_id]
+
+        if armies <= 0 {
+            log.Fatal("Must move a positive number of armies")
+        }
+
+        if region_from.owner != bot.name {
+            log.Fatal("Must own the source region at the start of the turn")
+        }
+
+        movement := &Movement{
+            region_from: region_from,
+            region_to: region_to,
+            armies: armies}
+
+        items = append(items, movement)
+    }
 
     return items
 }
