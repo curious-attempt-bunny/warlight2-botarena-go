@@ -1,1 +1,3 @@
-# warlight2-botarena-go
+# Usage
+
+    go run arena.go
