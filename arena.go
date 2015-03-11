@@ -207,12 +207,6 @@ func pick_a_region(state *State, bot *Bot, regions []int64) []int64 {
     return new_regions
 }
 
-func discard_a_region(regions []int64) []int64 {
-    // TODO
-
-    return regions
-}
-
 func parse(state *State, line string) *State {
     parts := strings.Split(line, " ")
 
