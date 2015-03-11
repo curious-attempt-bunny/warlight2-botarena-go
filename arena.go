@@ -1,13 +1,22 @@
 package main
 
-import exec "os/exec"
+import "fmt"
+import "os"
+import "os/exec"
+import "log"
+import "io"
+import "bufio"
+import "strings"
+import "strconv"
 
 type Bot struct {
     process *exec.Cmd
+    stdout *bufio.Reader
+    stdin io.WriteCloser
 }
 
 func main() {
-    bot := launch("broken_bot.sh")
+    bot := launch("./broken_bot.sh")
 
     send(bot, "settings timebank 10000")
     send(bot, "settings time_per_move 500")
@@ -26,14 +35,39 @@ func main() {
 
 func launch(launch_script string) *Bot {
     cmd := exec.Command(launch_script)
+    stdout, err := cmd.StdoutPipe()
+    if err != nil {
+        log.Fatal(err)
+    }
+    stdin, err := cmd.StdinPipe()
+    if err != nil {
+        log.Fatal(err)
+    }
 
-    bot := &Bot{process: cmd}
+    output := bufio.NewReader(stdout)
+
+    err = cmd.Start()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    bot := &Bot{process: cmd, stdin: stdin, stdout: output}
 
     return bot
 }
 
 func send(bot *Bot, command string) {
-    // TODO
+    // fmt.Fprintf(os.Stderr, ">> %s\n", command)
+    // io.WriteString(bot.stdin, fmt.Sprintf("%s\n", command))
+}
+
+func receive(bot *Bot) string {
+    line, _ := bot.stdout.ReadString('\n')
+    line = strings.TrimSpace(line)
+
+    fmt.Fprintf(os.Stderr, "<< %s\n", line)
+
+    return line
 }
 
 func pick_regions(bot *Bot, regions []int64) {
@@ -60,9 +94,28 @@ func pick_regions(bot *Bot, regions []int64) {
 }
 
 func pick_a_region(bot *Bot, regions []int64) []int64 {
-    // TODO
+    line := receive(bot)
 
-    return regions
+    region_id, err := strconv.ParseInt(line, 10, 0)
+    if err != nil {
+        log.Fatal(err)
+    }
+    index := -1
+    for i, id := range regions {
+        if id == region_id {
+            index = i
+            break
+        }
+    }
+    if index == -1 {
+        log.Fatal(fmt.Sprintf("Not a valid choice of starting region: %s\n", line))
+    }
+
+    new_regions := make([]int64, len(regions)-1)
+    copy(new_regions[:], regions[0:index])
+    copy(new_regions[index:], regions[index+1:])
+
+    return new_regions
 }
 
 func discard_a_region(regions []int64) []int64 {

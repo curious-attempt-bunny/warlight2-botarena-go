@@ -1,3 +1,4 @@
 #!/bin/sh
 
-echo "I don't work"
+echo "1"
+
