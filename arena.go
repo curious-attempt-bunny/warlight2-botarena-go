@@ -159,19 +159,11 @@ func pick_regions(state *State, bot *Bot, regions []int64) {
 
     remaining_regions := regions
 
-    // simulate that the bot goes first
-    remaining_regions = pick_a_region(state, bot, remaining_regions)
-
     for {
         if len(remaining_regions) == 3 {
             break;
         }
 
-        // simulate the presence of another bot
-        remaining_regions = discard_a_region(remaining_regions)
-        remaining_regions = discard_a_region(remaining_regions)
-
-        remaining_regions = pick_a_region(state, bot, remaining_regions)
         remaining_regions = pick_a_region(state, bot, remaining_regions)
     }
 }
