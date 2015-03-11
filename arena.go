@@ -166,6 +166,8 @@ func pick_regions(state *State, bot *Bot, regions []int64) {
 
         remaining_regions = pick_a_region(state, bot, remaining_regions)
     }
+
+    send(bot, "setup_map opponent_starting_regions")
 }
 
 func pick_a_region(state *State, bot *Bot, regions []int64) []int64 {
@@ -297,11 +299,58 @@ func update_map(state *State, bot *Bot) {
 func placements(state *State, bot *Bot) []*Placement {
     items := []*Placement{}
 
+    line := receive(bot)
+    commands := strings.Split(line, ",")
+
+    remaining_armies := int64(5) // TODO
+
+    for _, command := range commands {
+        if strings.TrimSpace(command) == "" {
+            continue
+        }
+        parts := strings.Split(command, " ")
+        if !(len(parts) == 4 && parts[1] == "place_armies" && parts[0] == bot.name) {
+            log.Fatal(fmt.Sprintf("Wrong placement format: %s", command))
+        }
+
+        region_id, _ := strconv.ParseInt(parts[2], 10, 0)
+        armies, _ := strconv.ParseInt(parts[3], 10, 0)
+
+        region := state.regions[region_id]
+
+        if armies <= 0 {
+            log.Fatal("Must place a positive number of armies")
+        }
+
+        if armies > remaining_armies {
+            log.Fatal("Trying to place more armies than are available")
+        }
+
+        if region.owner != bot.name {
+            log.Fatal("Must place armies on an owned region")
+        }
+
+        placement := &Placement{
+            region: region,
+            armies: armies}
+
+        items = append(items, placement)
+
+        remaining_armies -= armies
+    }
+
+    if remaining_armies > 0 {
+        log.Fatal("Did not place all armies available")
+    }
+
     return items
 }
 
 func movements(state *State, bot *Bot) []*Movement {
     items := []*Movement{}
+
+    line := receive(bot)
+    _ = line
 
     return items
 }
