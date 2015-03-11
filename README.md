@@ -1,3 +1,3 @@
 # Usage
 
-    go run arena.go
+    go run arena.go ./fake_bot.sh

@@ -8,6 +8,7 @@ import "io"
 import "bufio"
 import "strings"
 import "strconv"
+import "flag"
 
 type Bot struct {
     name string
@@ -49,7 +50,14 @@ type Movement struct {
 }
 
 func main() {
-    bot := launch("./fake_bot.sh")
+    flag.Parse()
+
+    launch_command := flag.Arg(0)
+    if launch_command == "" {
+        log.Fatal("Usage: <bot launcher script>")
+    }
+
+    bot := launch(launch_command)
     bot.name = "player1"
 
     send(bot, "settings timebank 10000")
