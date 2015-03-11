@@ -15,6 +15,27 @@ type Bot struct {
     stdin io.WriteCloser
 }
 
+type State struct {
+    regions map[int64]*Region
+    super_regions map[int64]*SuperRegion
+    starting_armies int64
+}
+
+type Region struct {
+    id int64
+    super_region *SuperRegion
+    neighbours []*Region
+    owner string
+    armies int64
+    visible bool
+}
+
+type SuperRegion struct {
+    id int64
+    regions []*Region
+    reward int64
+}
+
 func main() {
     bot := launch("./fake_bot.sh")
 
@@ -25,10 +46,18 @@ func main() {
     send(bot, "settings opponent_bot player2")
 
     // hard-coded map data to get started with
-    send(bot, "setup_map super_regions 1 1 2 0 3 2 4 6 5 1")
-    send(bot, "setup_map regions 1 1 2 1 3 1 4 2 5 2 6 3 7 3 8 3 9 4 10 4 11 4 12 4 13 4 14 4 15 4 16 5 17 5 18 5")
-    send(bot, "setup_map neighbors 1 2,4 2 4,6,3 3 7,6 4 5,6 5 10,9,6 6 7,9,12 7 13,8,12 9 10,12 10 11,14,12,15 11 14 12 15,13 13 15 14 16,15 15 16 16 18,17")
-    send(bot, "setup_map wastelands 1 10")
+    terrain := []string {
+        "setup_map super_regions 1 1 2 0 3 2 4 6 5 1",
+        "setup_map regions 1 1 2 1 3 1 4 2 5 2 6 3 7 3 8 3 9 4 10 4 11 4 12 4 13 4 14 4 15 4 16 5 17 5 18 5",
+        "setup_map neighbors 1 2,4 2 4,6,3 3 7,6 4 5,6 5 10,9,6 6 7,9,12 7 13,8,12 9 10,12 10 11,14,12,15 11 14 12 15,13 13 15 14 16,15 15 16 16 18,17",
+        "setup_map wastelands 1 10" }
+
+    state := &State{}
+
+    for _, line := range terrain {
+        send(bot, line)
+        state = parse(state, line)
+    }
 
     pick_regions(bot, []int64{3, 4, 7, 15, 17})
 }
@@ -128,4 +157,63 @@ func discard_a_region(regions []int64) []int64 {
     // TODO
 
     return regions
+}
+
+func parse(state *State, line string) *State {
+    parts := strings.Split(line, " ")
+
+    if parts[0] == "setup_map" {
+        if parts[1] == "super_regions" {
+            state.super_regions = make(map[int64]*SuperRegion)
+            for i := 2; i < len(parts); i += 2 {
+                id, _ := strconv.ParseInt(parts[i], 10, 0)
+                reward, _ := strconv.ParseInt(parts[i+1], 10, 0)
+
+                state.super_regions[id] = &SuperRegion{id: id, reward: reward}
+            }
+        } else if parts[1] == "regions" {
+            state.regions = make(map[int64]*Region)
+            for i := 2; i < len(parts); i += 2 {
+                region_id, _ := strconv.ParseInt(parts[i], 10, 0)
+                super_region_id, _ := strconv.ParseInt(parts[i+1], 10, 0)
+
+                super_region := state.super_regions[super_region_id]
+                region := &Region{
+                    id: region_id,
+                    owner: "neutral",
+                    super_region: super_region,
+                    armies: 2,
+                    neighbours: []*Region{} }
+                state.regions[region_id] = region
+                super_region.regions = append(super_region.regions, region)
+            }
+        } else if parts[1] == "neighbors" {
+            for i := 2; i < len(parts); i += 2 {
+                region_id, _ := strconv.ParseInt(parts[i], 10, 0)
+                neighbour_ids := strings.Split(parts[i+1], ",")
+
+                region := state.regions[region_id]
+
+                for _, neighbour_id := range neighbour_ids {
+                    id, _ := strconv.ParseInt(neighbour_id, 10, 0)
+                    neighbour := state.regions[id]
+                    region.neighbours = append(region.neighbours, neighbour)
+                    neighbour.neighbours = append(neighbour.neighbours, region)
+                }
+            }
+        } else if parts[1] == "wastelands" {
+            for i := 2; i < len(parts); i++ {
+                region_id, _ := strconv.ParseInt(parts[i], 10, 0)
+
+                region := state.regions[region_id]
+                region.armies = 6
+            }
+        } else {
+            log.Fatal(fmt.Sprintf("Don't recognise: %s\n", line))
+        }
+    } else {
+        log.Fatal(fmt.Sprintf("Don't recognise: %s\n", line))
+    }
+
+    return state
 }
