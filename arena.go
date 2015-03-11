@@ -98,8 +98,7 @@ func main() {
 
         movements := movements(state, bot)
 
-        _ = placements // TODO
-        _ = movements // TODO
+        state = apply(state, bot, placements, movements)
 
         if game_over(state) {
             break
@@ -398,4 +397,25 @@ func movements(state *State, bot *Bot) []*Movement {
     }
 
     return items
+}
+
+func apply(state *State, bot *Bot, placements []*Placement, movements []*Movement) *State {
+    for _, placement := range placements {
+        placement.region.armies += placement.armies
+    }
+
+    for _, movement := range movements {
+        if movement.region_from.armies <= movement.armies {
+            log.Fatal("Trying to move more armies than remain")
+        }
+
+        if movement.region_to.owner == bot.name {
+            movement.region_to.armies += movement.armies
+            movement.region_from.armies -= movement.armies
+        } else {
+            // TODO
+        }
+    }
+
+    return state
 }
