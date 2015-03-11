@@ -309,6 +309,11 @@ func placements(state *State, bot *Bot) []*Placement {
     items := []*Placement{}
 
     line := receive(bot)
+
+    if line == "No moves" {
+        return items
+    }
+
     commands := strings.Split(line, ",")
 
     remaining_armies := int64(5) // TODO
