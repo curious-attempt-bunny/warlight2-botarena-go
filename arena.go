@@ -9,6 +9,7 @@ import "bufio"
 import "strings"
 import "strconv"
 import "flag"
+import "path/filepath"
 
 type Bot struct {
     name string
@@ -107,6 +108,11 @@ func main() {
 }
 
 func launch(launch_script string) *Bot {
+    launch_script, err := filepath.Abs(launch_script)
+    if err != nil {
+        log.Fatal(err)
+    }
+
     cmd := exec.Command(launch_script)
     stdout, err := cmd.StdoutPipe()
     if err != nil {
@@ -118,6 +124,8 @@ func launch(launch_script string) *Bot {
     }
 
     output := bufio.NewReader(stdout)
+
+    cmd.Dir = filepath.Dir(launch_script)
 
     err = cmd.Start()
     if err != nil {
