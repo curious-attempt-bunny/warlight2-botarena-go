@@ -83,7 +83,7 @@ func main() {
 
     pick_regions(state, bot, []int64{3, 4, 7, 15, 17})
 
-    for {
+    for i := 0; i < 2; i++ { // TODO
         send(bot, "settings starting_armies 5") // TODO
 
         update_map(state, bot)
@@ -273,7 +273,16 @@ func parse(state *State, line string) *State {
 }
 
 func game_over(state *State) bool {
-    return true // TODO
+    complete := true
+
+    for _, region := range state.regions {
+        if region.owner == "neutral" {
+            complete = false
+            break
+        }
+    }
+
+    return complete
 }
 
 func update_map(state *State, bot *Bot) {
