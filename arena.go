@@ -155,13 +155,15 @@ func pick_regions(state *State, bot *Bot, regions []int64) {
     // TODO don't hardcode this
     send(bot, "settings starting_regions 3 4 7 15 17")
 
+    send(bot, "settings starting_pick_amount 2")
+
     remaining_regions := regions
 
     // simulate that the bot goes first
     remaining_regions = pick_a_region(state, bot, remaining_regions)
 
     for {
-        if len(remaining_regions) == 0 {
+        if len(remaining_regions) == 3 {
             break;
         }
 
@@ -175,6 +177,10 @@ func pick_regions(state *State, bot *Bot, regions []int64) {
 }
 
 func pick_a_region(state *State, bot *Bot, regions []int64) []int64 {
+    if len(regions) == 3 {
+        return regions
+    }
+
     region_strs := make([]string, len(regions))
     for i, id := range regions {
         region_strs[i] = fmt.Sprintf("%d", id)
