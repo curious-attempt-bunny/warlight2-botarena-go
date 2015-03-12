@@ -316,7 +316,8 @@ func placements(state *State, bot *Bot) []*Placement {
     remaining_armies := starting_armies(state, bot)
 
     for _, command := range commands {
-        if strings.TrimSpace(command) == "" {
+        command := strings.TrimSpace(command)
+        if command == "" {
             continue
         }
         parts := strings.Split(command, " ")
@@ -369,7 +370,8 @@ func movements(state *State, bot *Bot) []*Movement {
     commands := strings.Split(line, ",")
 
     for _, command := range commands {
-        if strings.TrimSpace(command) == "" {
+        command := strings.TrimSpace(command)
+        if command == "" {
             continue
         }
         parts := strings.Split(command, " ")
