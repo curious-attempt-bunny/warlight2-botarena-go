@@ -13,6 +13,7 @@ import "path/filepath"
 import "math"
 
 type Bot struct {
+    id int64
     name string
     process *exec.Cmd
     stdout *bufio.Reader
@@ -54,19 +55,11 @@ type Movement struct {
 func main() {
     flag.Parse()
 
-    launch_command := flag.Arg(0)
-    if launch_command == "" {
-        log.Fatal("Usage: <bot launcher script>")
+    if len(flag.Args()) != 1 && len(flag.Args()) != 2 {
+        log.Fatal("Usage: <bot launcher script> (<bot launcher script>)")
     }
 
-    bot := launch(launch_command)
-    bot.name = "player1"
-
-    send(bot, "settings timebank 10000")
-    send(bot, "settings time_per_move 500")
-    send(bot, "settings max_rounds 45")
-    send(bot, fmt.Sprintf("settings your_bot %s", bot.name))
-    send(bot, "settings opponent_bot player2") // TODO
+    bots := make([]*Bot, len(flag.Args()))
 
     // hard-coded map data to get started with
     terrain := []string {
@@ -75,14 +68,32 @@ func main() {
         "setup_map neighbors 1 2,4 2 4,6,3 3 7,6 4 5,6 5 10,9,6 6 7,9,12 7 13,8,12 9 10,12 10 11,14,12,15 11 14 12 15,13 13 15 14 16,15 15 16 16 18,17",
         "setup_map wastelands 1 10" }
 
+    for i := 0; i < len(bots); i++ {
+        launch_command := flag.Arg(i)
+        bot := launch(launch_command)
+        bot.id = int64(1+i)
+        bot.name = fmt.Sprintf("player%d", bot.id)
+
+        send(bot, "settings timebank 10000")
+        send(bot, "settings time_per_move 500")
+        send(bot, "settings max_rounds 45")
+        send(bot, fmt.Sprintf("settings your_bot %s", bot.name))
+        send(bot, fmt.Sprintf("settings opponent_bot player%d", (3-bot.id)))
+
+        for _, line := range terrain {
+            send(bot, line)
+        }
+
+        bots[i] = bot
+    }
+
     state := &State{}
 
     for _, line := range terrain {
-        send(bot, line)
         state = parse(state, line)
     }
 
-    pick_regions(state, bot, []int64{3, 4, 7, 15, 17})
+    pick_regions(state, bots, []int64{3, 4, 7, 15, 17})
 
     for round := 1; round <= 45; round++ { // TODO
         if game_over(state) {
@@ -92,21 +103,26 @@ func main() {
         fmt.Println()
         fmt.Printf("-- Round %d\n", round)
 
-        send(bot, fmt.Sprintf("settings starting_armies %d", starting_armies(state, bot)))
+        placements := make([][]*Placement, len(bots))
+        movements := make([][]*Movement, len(bots))
 
-        update_map(state, bot)
+        for i, bot := range bots {
+            send(bot, fmt.Sprintf("settings starting_armies %d", starting_armies(state, bot)))
 
-        send(bot, "opponent_moves")
+            update_map(state, bot)
 
-        send(bot, "go place_armies 10000")
+            send(bot, "opponent_moves")
 
-        placements := placements(state, bot)
+            send(bot, "go place_armies 10000")
 
-        send(bot, "go attack/transfer 10000")
+            placements[i] = recieve_placements(state, bot)
 
-        movements := movements(state, bot)
+            send(bot, "go attack/transfer 10000")
 
-        state = apply(state, bot, placements, movements)
+            movements[i] = recieve_movements(state, bot)
+        }
+
+        state = apply(state, bots[0], placements[0], movements[0])
     }
 }
 
@@ -154,7 +170,9 @@ func receive(bot *Bot) string {
     return line
 }
 
-func pick_regions(state *State, bot *Bot, regions []int64) {
+func pick_regions(state *State, bots []*Bot, regions []int64) {
+    bot := bots[0] // TODO
+
     // TODO don't hardcode this
     send(bot, "settings starting_regions 3 4 7 15 17")
 
@@ -302,7 +320,7 @@ func update_map(state *State, bot *Bot) {
     send(bot, output)
 }
 
-func placements(state *State, bot *Bot) []*Placement {
+func recieve_placements(state *State, bot *Bot) []*Placement {
     items := []*Placement{}
 
     line := receive(bot)
@@ -358,7 +376,7 @@ func placements(state *State, bot *Bot) []*Placement {
     return items
 }
 
-func movements(state *State, bot *Bot) []*Movement {
+func recieve_movements(state *State, bot *Bot) []*Movement {
     items := []*Movement{}
 
     line := receive(bot)
