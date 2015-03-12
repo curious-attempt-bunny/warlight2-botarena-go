@@ -1,3 +1,13 @@
-# Usage
+# Overview
 
-    go run arena.go ./fake_bot.sh
+With botarena you can run your warlight2 bot wherever you want and get fast feedback as to whether or not you've improved it or not.
+
+# Launch convention
+
+botarena does not autodetect the runtime environment for your bot. You must provide a `run.sh` script that knows how to launch your bot.
+
+# Solo play
+
+This will run your bot against a normal map with only neutral enemies. See how many rounds it takes your bot to conquer the entire map. The best we've seen is 7 rounds.
+
+    go run arena.go <path_to_run_script>
