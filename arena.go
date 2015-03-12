@@ -124,7 +124,7 @@ func main() {
             movements[i] = recieve_movements(state, bot)
         }
 
-        state = apply(state, bots[0], placements[0], movements[0])
+        state = apply(state, placements, movements)
     }
 }
 
@@ -413,7 +413,8 @@ func recieve_movements(state *State, bot *Bot) []*Movement {
         // }
 
         if region_from.owner != bot.name {
-            log.Fatal(fmt.Sprintf("Must own the source region at the start of the turn: %s", command))
+            log.Println(fmt.Sprintf("Must own the source region at the start of the turn: %s", command))
+            continue
         }
 
         movement := &Movement{
@@ -427,17 +428,37 @@ func recieve_movements(state *State, bot *Bot) []*Movement {
     return items
 }
 
-func apply(state *State, bot *Bot, placements []*Placement, movements []*Movement) *State {
-    for _, placement := range placements {
-        placement.region.armies += placement.armies
+func apply(state *State, placements [][]*Placement, movements [][]*Movement) *State {
+    for i, _ := range state.bots {
+        for _, placement := range placements[i] {
+            placement.region.armies += placement.armies
+        }
     }
 
-    for _, movement := range movements {
+    movement_count := 0
+    for i, _ := range state.bots {
+        movement_count += len(movements[i])
+    }
+
+    rotation := []int{0, 1, 1, 0}
+    indexes := []int{0, 0}
+    all_movements := make([]*Movement, movement_count)
+    for j, _ := range all_movements {
+        bot_index := rotation[j%4]
+        if indexes[bot_index] == len(movements[bot_index]) {
+            bot_index = (bot_index + 1) % len(state.bots)
+        }
+        all_movements[j] = movements[bot_index][indexes[bot_index]]
+        indexes[bot_index]++
+    }
+
+    for _, movement := range all_movements {
         if movement.region_from.armies <= movement.armies {
-            log.Fatal("Trying to move more armies than remain")
+            // log.Fatal("Trying to move more armies than remain")
+            movement.armies = movement.region_from.armies-1
         }
 
-        if movement.region_to.owner == bot.name {
+        if movement.region_to.owner == movement.region_from.owner {
             movement.region_to.armies += movement.armies
             movement.region_from.armies -= movement.armies
         } else {
@@ -484,7 +505,7 @@ func apply(state *State, bot *Bot, placements []*Placement, movements []*Movemen
             } else {
                 // won the attack
 
-                movement.region_to.owner = bot.name
+                movement.region_to.owner = movement.region_from.owner
                 movement.region_to.armies = movement.armies - attacking_armies_killed
                 movement.region_from.armies -= movement.armies
             }

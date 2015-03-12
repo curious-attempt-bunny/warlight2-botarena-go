@@ -11,3 +11,13 @@ botarena does not autodetect the runtime environment for your bot. You must prov
 This will run your bot against a normal map with only neutral enemies. See how many rounds it takes your bot to conquer the entire map. The best we've seen is 7 rounds.
 
     go run arena.go <path_to_run_script>
+
+# Head to head play
+
+This will run two of your bots against each other.
+
+    go run arena.go <path_to_run_script> <path_to_run_script>
+
+# Implementation notes
+
+The fight resolution logic assumes the worst luck for the attacker.
