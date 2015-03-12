@@ -24,6 +24,7 @@ type State struct {
     regions map[int64]*Region
     super_regions map[int64]*SuperRegion
     starting_armies int64
+    bots []*Bot
 }
 
 type Region struct {
@@ -88,6 +89,7 @@ func main() {
     }
 
     state := &State{}
+    state.bots = bots
 
     for _, line := range terrain {
         state = parse(state, line)
@@ -157,7 +159,7 @@ func launch(launch_script string) *Bot {
 }
 
 func send(bot *Bot, command string) {
-    fmt.Fprintf(os.Stderr, ">> %s\n", command)
+    fmt.Fprintf(os.Stderr, ">%d> %s\n", bot.id, command)
     io.WriteString(bot.stdin, fmt.Sprintf("%s\n", command))
 }
 
@@ -165,37 +167,33 @@ func receive(bot *Bot) string {
     line, _ := bot.stdout.ReadString('\n')
     line = strings.TrimSpace(line)
 
-    fmt.Fprintf(os.Stderr, "<< %s\n", line)
+    fmt.Fprintf(os.Stderr, "<%d< %s\n", bot.id, line)
 
     return line
 }
 
 func pick_regions(state *State, bots []*Bot, regions []int64) {
-    bot := bots[0] // TODO
-
-    // TODO don't hardcode this
-    send(bot, "settings starting_regions 3 4 7 15 17")
-
-    send(bot, "settings starting_pick_amount 2")
-
-    remaining_regions := regions
-
-    for {
-        if len(remaining_regions) == 3 {
-            break;
-        }
-
-        remaining_regions = pick_a_region(state, bot, remaining_regions)
+    for _, bot := range bots {
+        send(bot, "settings starting_regions 3 4 7 15 17") // TODO
+        send(bot, "settings starting_pick_amount 2") // TODO
     }
 
-    send(bot, "setup_map opponent_starting_regions")
+    remaining_picks := 2*len(bots) // TODO
+    remaining_regions := regions
+
+    rotation := []int{0, 1, 1, 0}
+
+    for i := 0; i<remaining_picks; i++ {
+        index := rotation[i%4]
+        remaining_regions = pick_a_region(state, bots[index], remaining_regions)
+    }
+
+    for _, bot := range bots {
+        send(bot, "setup_map opponent_starting_regions") // TODO
+    }
 }
 
 func pick_a_region(state *State, bot *Bot, regions []int64) []int64 {
-    if len(regions) == 3 {
-        return regions
-    }
-
     region_strs := make([]string, len(regions))
     for i, id := range regions {
         region_strs[i] = fmt.Sprintf("%d", id)
@@ -288,16 +286,17 @@ func parse(state *State, line string) *State {
 }
 
 func game_over(state *State) bool {
-    complete := true
+    countByOwner := make(map[string]int64)
 
     for _, region := range state.regions {
-        if region.owner == "neutral" {
-            complete = false
-            break
-        }
+        countByOwner[region.owner] += 1
     }
 
-    return complete
+    if len(state.bots) == 1 {
+        return countByOwner["neutral"] == 0
+    } else {
+        return countByOwner["player1"] == 0 || countByOwner["player2"] == 0
+    }
 }
 
 func update_map(state *State, bot *Bot) {
