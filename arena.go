@@ -25,6 +25,7 @@ type State struct {
     super_regions map[int64]*SuperRegion
     starting_armies int64
     bots []*Bot
+    round int
 }
 
 type Region struct {
@@ -97,13 +98,16 @@ func main() {
 
     pick_regions(state, bots, []int64{3, 4, 7, 15, 17})
 
-    for round := 1; round <= 45; round++ { // TODO
+    for state.round = 1; state.round <= 45+1; state.round++ { // TODO
         if game_over(state) {
+            break
+        } else if state.round == 45+1 {
+            fmt.Println("DRAW GAME")
             break
         }
 
         fmt.Println()
-        fmt.Printf("-- Round %d\n", round)
+        fmt.Printf("-- Round %d\n", state.round)
 
         placements := make([][]*Placement, len(bots))
         movements := make([][]*Movement, len(bots))
@@ -293,10 +297,23 @@ func game_over(state *State) bool {
     }
 
     if len(state.bots) == 1 {
-        return countByOwner["neutral"] == 0
+        if countByOwner["neutral"] == 0 {
+            fmt.Printf("CONQUEST IN %d ROUNDS", state.round)
+            return true
+        }
     } else {
-        return countByOwner["player1"] == 0 || countByOwner["player2"] == 0
+        if countByOwner["player1"] == 0 || countByOwner["player2"] == 0 {
+            winner := "player1"
+            if countByOwner["player1"] == 0 {
+                winner = "player2"
+            }
+
+            fmt.Printf("WIN BY %s IN %d ROUNDS\n", winner, state.round)
+            return true
+        }
     }
+
+    return false
 }
 
 func update_map(state *State, bot *Bot) {
