@@ -18,6 +18,13 @@ This will run two of your bots against each other.
 
     go run arena.go <path_to_run_script> <path_to_run_script>
 
+# Game visualisation
+
+This is work in progress.
+
+    go run viewer.go
+    open http://localhost:8080/competitions/warlight-ai-challenge-2/games/MAP_IDENTIFIER
+
 # Implementation notes
 
 The fight resolution logic assumes the worst luck for the attacker.
