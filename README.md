@@ -20,10 +20,10 @@ This will run two of your bots against each other.
 
 # Game visualisation
 
-This is work in progress.
+This is work in progress. Note that the viewer runs on port 80.
 
-    go run viewer.go
-    open http://localhost:8080/competitions/warlight-ai-challenge-2/games/MAP_IDENTIFIER
+    sudo go run viewer.go
+    open http://localhost/competitions/warlight-ai-challenge-2/games/5502423e1c687b0e2fb9df59
 
 # Implementation notes
 
