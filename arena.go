@@ -27,6 +27,8 @@ type State struct {
     bots []*Bot
     round int
     data_log *os.File
+    player1_log string
+    player2_log string
 }
 
 type Region struct {
@@ -107,13 +109,14 @@ func main() {
     log_map(state) // NOTE Consistent with theaigames - seems odd, though
 
     for state.round = 1; state.round <= 147+1; state.round++ { // TODO
-        log_line(state, fmt.Sprintf("round %d", state.round))
         if game_over(state) {
             break
         } else if state.round == 147+1 {
             fmt.Println("DRAW GAME")
             break
         }
+
+        log_line(state, fmt.Sprintf("round %d", state.round))
 
         fmt.Println()
         fmt.Printf("-- Round %d\n", state.round)
@@ -139,6 +142,9 @@ func main() {
 
         state = apply(state, placements, movements)
     }
+
+    io.WriteString(state.data_log, state.player1_log)
+    io.WriteString(state.data_log, state.player2_log)
 }
 
 func launch(launch_script string) *Bot {
@@ -187,15 +193,43 @@ func receive(bot *Bot) string {
 
 func log_line(state *State, line string) {
     io.WriteString(state.data_log, line+"\n")
+    state.player1_log += line+"\n"
+    state.player2_log += line+"\n"
 }
 
 func log_map(state *State) {
-    io.WriteString(state.data_log, "map")
+    io.WriteString(state.data_log, render_map(state, nil))
+
+    state.player1_log += render_map(state, state.bots[0])
+    state.player2_log += render_map(state, state.bots[1])
+}
+
+func render_map(state *State, bot *Bot) string {
+    rendered_map := "map"
+
     for i := 1; i <= len(state.regions); i++ {
         region := state.regions[int64(i)]
-        io.WriteString(state.data_log, fmt.Sprintf(" %d;%s;%d", region.id, region.owner, region.armies))
+        visible := false
+        if bot == nil {
+            visible = true
+        } else {
+            for _, neighbour := range region.neighbours {
+                if neighbour.owner == bot.name {
+                    visible = true
+                    break
+                }
+            }
+        }
+
+        if visible {
+            rendered_map += fmt.Sprintf(" %d;%s;%d", region.id, region.owner, region.armies)
+        } else {
+            rendered_map += fmt.Sprintf(" %d;owner;0", region.id)
+        }
     }
-    io.WriteString(state.data_log, "\n")
+    rendered_map += "\n"
+
+    return rendered_map
 }
 
 func pick_regions(state *State, bots []*Bot, regions []int64) {

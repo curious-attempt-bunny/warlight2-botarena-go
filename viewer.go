@@ -27,11 +27,13 @@ func Proxy(w http.ResponseWriter, r *http.Request) {
 func main() {
     http.HandleFunc("/competitions/warlight-ai-challenge-2/games/", func(w http.ResponseWriter, r *http.Request) {
         if strings.Index(r.URL.String(), "/data") >= 0 {
+            w.Header()["Content-Type"] = []string{"text/html"}
             data, err := os.Open("game-data.txt")
             if err != nil {
                 log.Fatal(err)
             }
             io.Copy(w, data)
+            data.Close()
         } else {
             Proxy(w, r)
         }
