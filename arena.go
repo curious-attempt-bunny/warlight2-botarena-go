@@ -220,7 +220,7 @@ func render_map(state *State, bot *Bot) string {
     for i := 1; i <= len(state.regions); i++ {
         region := state.regions[int64(i)]
         visible := false
-        if bot == nil {
+        if bot == nil || region.owner == bot.name {
             visible = true
         } else {
             for _, neighbour := range region.neighbours {
@@ -234,7 +234,7 @@ func render_map(state *State, bot *Bot) string {
         if visible {
             rendered_map += fmt.Sprintf(" %d;%s;%d", region.id, region.owner, region.armies)
         } else {
-            rendered_map += fmt.Sprintf(" %d;owner;0", region.id)
+            rendered_map += fmt.Sprintf(" %d;unknown;0", region.id)
         }
     }
     rendered_map += "\n"
@@ -264,6 +264,7 @@ func pick_regions(state *State) {
         send(bot, fmt.Sprintf("settings starting_pick_amount %d", state.starting_pick_amount))
     }
     log_line(state, strings.Join(region_strs[:], " "))
+
     log_map(state)
     log_line(state, "round 0")
 
@@ -426,7 +427,7 @@ func game_over(state *State) bool {
 func update_map(state *State, bot *Bot) {
     output := "update_map"
     for _, region := range state.regions {
-        visible := region.owner == bot.name
+        visible := bot.name == region.owner
         if !visible {
             for _, neighbour := range region.neighbours {
                 if neighbour.owner == bot.name {
