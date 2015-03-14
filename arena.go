@@ -1,16 +1,17 @@
 package main
 
+import "bufio"
+import "flag"
 import "fmt"
+import "io"
+import "io/ioutil"
+import "log"
+import "math"
 import "os"
 import "os/exec"
-import "log"
-import "io"
-import "bufio"
-import "strings"
-import "strconv"
-import "flag"
 import "path/filepath"
-import "math"
+import "strconv"
+import "strings"
 
 type Bot struct {
     id int64
@@ -23,12 +24,15 @@ type Bot struct {
 type State struct {
     regions map[int64]*Region
     super_regions map[int64]*SuperRegion
-    starting_armies int64
+    starting_regions []int64
+    starting_pick_amount int64
+    max_rounds int64
     bots []*Bot
-    round int
+    round int64
     data_log *os.File
     player1_log string
     player2_log string
+    raw_start []string
 }
 
 type Region struct {
@@ -58,45 +62,51 @@ type Movement struct {
 }
 
 func main() {
+    var terrain_id *string = flag.String("map", "54f45b994b5ab244fb84c7b1", "Map file to use (default 54f45b994b5ab244fb84c7b1)")
     flag.Parse()
 
     if len(flag.Args()) != 1 && len(flag.Args()) != 2 {
-        log.Fatal("Usage: <bot launcher script> (<bot launcher script>)")
+        log.Fatal("Usage: [-map=<map id>] <bot launcher script> [<bot launcher script>]")
+    }
+
+    var filename = "maps/" + *terrain_id + ".txt"
+
+    buffer, err := ioutil.ReadFile(filename)
+    terrain := string(buffer)
+
+    if err != nil {
+        log.Fatal(err)
     }
 
     bots := make([]*Bot, len(flag.Args()))
 
-    // hard-coded map data to get started with (from map 54f45b994b5ab244fb84c7b1)
-    terrain := []string {
-        "setup_map super_regions 1 3 2 2 3 2 4 2 5 5 6 4 7 3 8 5 9 5 10 4 11 5 12 5 13 2",
-        "setup_map regions 1 1 2 1 3 1 4 1 5 1 6 2 7 2 8 2 9 3 10 3 11 3 12 4 13 4 14 4 15 5 16 5 17 5 18 5 19 5 20 5 21 6 22 6 23 6 24 6 25 6 26 7 27 7 28 7 29 7 30 8 31 8 32 8 33 8 34 8 35 9 36 9 37 9 38 9 39 9 40 9 41 10 42 10 43 10 44 10 45 11 46 11 47 11 48 11 49 11 50 12 51 12 52 12 53 12 54 12 55 12 56 12 57 13 58 13 59 13",
-        "setup_map neighbors 1 2,4,3 2 7,4 3 4,5,32 4 7,33,5 5 32,33 6 7,8 7 33,22,21 8 21 9 10,11 10 11,14,12,13 11 35,14,36,42 12 13 13 27,14,26 14 43,28,42,27 15 16 16 18,36,17,19,30,31 17 31,19 18 36,19 19 38,40,37,34,36,31,57,20 20 40,57,58 21 22 22 23,24,33 23 46,48,33,24,25,45,52,53 24 51,52 25 53,48 26 41,27 27 41,28,29,44 28 43,29 29 43,44 30 31 31 32,34 32 34,33,45 33 45 34 47,57,45 35 36 36 42,38,37 37 40,39,38,42,43 39 42,43 41 44 42 43 43 44 45 47,46 46 48 47 49,59,57,58 48 49,53 49 53,59 50 51,54 51 52,54 52 53,56,54 53 56 54 56,55 57 58 58 59",
-        "setup_map wastelands 12 20 24 25 31 58" }
+    state := &State{}
+    state.bots = bots
+
+    lines := strings.Split(terrain, "\n")
+
+    for _, line := range lines {
+        state = parse(state, line)
+    }
+
     for i := 0; i < len(bots); i++ {
         launch_command := flag.Arg(i)
         bot := launch(launch_command)
         bot.id = int64(1+i)
         bot.name = fmt.Sprintf("player%d", bot.id)
 
-        send(bot, "settings timebank 10000")
-        send(bot, "settings time_per_move 500")
-        send(bot, "settings max_rounds 147")
+        send(bot, "settings timebank 10000") // TODO: remove hardcoded value
+        send(bot, "settings time_per_move 500") // TODO: remove hardcoded value
+        send(bot, fmt.Sprintf("settings max_rounds %d", state.max_rounds))
         send(bot, fmt.Sprintf("settings your_bot %s", bot.name))
         send(bot, fmt.Sprintf("settings opponent_bot player%d", (3-bot.id)))
-
-        for _, line := range terrain {
-            send(bot, line)
-        }
 
         bots[i] = bot
     }
 
-    state := &State{}
-    state.bots = bots
+    send_map(state)
 
-    for _, line := range terrain {
-        state = parse(state, line)
-    }
+    pick_regions(state)
 
     data_log, err := os.Create("game-data.txt")
     if err != nil {
@@ -104,14 +114,14 @@ func main() {
     }
     state.data_log = data_log
 
-    pick_regions(state, bots, []int64{5, 8, 10, 13, 17, 23, 27, 30, 38, 41, 48, 54, 57})
+    pick_regions(state)
 
     log_map(state) // NOTE Consistent with theaigames - seems odd, though
 
-    for state.round = 1; state.round <= 147+1; state.round++ { // TODO
+    for state.round = 1; state.round <= state.max_rounds+1; state.round++ {
         if game_over(state) {
             break
-        } else if state.round == 147+1 {
+        } else if state.round == state.max_rounds+1 {
             fmt.Println("DRAW GAME")
             break
         }
@@ -232,26 +242,42 @@ func render_map(state *State, bot *Bot) string {
     return rendered_map
 }
 
-func pick_regions(state *State, bots []*Bot, regions []int64) {
-    for _, bot := range bots {
-        send(bot, "settings starting_regions 5 8 10 13 17 23 27 30 38 41 48 54 57") // TODO
-        send(bot, "settings starting_pick_amount 4") // TODO
+func send_map(state *State) {
+    for _, bot := range state.bots {
+        for i := 0; i < len(state.raw_start); i++ {
+            send(bot, state.raw_start[i])
+        }
     }
-    log_line(state, "5 8 10 13 17 23 27 30 38 41 48 54 57") // TODO
+}
+
+func pick_regions(state *State) {
+    regions := make([]int64, len(state.starting_regions), len(state.starting_regions))
+    copy(regions, state.starting_regions)
+
+    region_strs := make([]string, len(regions))
+    for i, id := range regions {
+        region_strs[i] = fmt.Sprintf("%d", id)
+    }
+
+    for _, bot := range state.bots {
+        send(bot, fmt.Sprintf("settings starting_regions %s", strings.Join(region_strs[:], " ")))
+        send(bot, fmt.Sprintf("settings starting_pick_amount %d", state.starting_pick_amount))
+    }
+    log_line(state, strings.Join(region_strs[:], " "))
     log_map(state)
     log_line(state, "round 0")
 
-    remaining_picks := 4*len(bots) // TODO
+    remaining_picks := int(state.starting_pick_amount) * len(state.bots)
     remaining_regions := regions
 
     rotation := []int{0, 1, 1, 0}
 
     for i := 0; i<remaining_picks; i++ {
         index := rotation[i%4]
-        remaining_regions = pick_a_region(state, bots[index], remaining_regions)
+        remaining_regions = pick_a_region(state, state.bots[index], remaining_regions)
     }
 
-    for _, bot := range bots {
+    for _, bot := range state.bots {
         send(bot, "setup_map opponent_starting_regions") // TODO
     }
 }
@@ -293,10 +319,16 @@ func pick_a_region(state *State, bot *Bot, regions []int64) []int64 {
 }
 
 func parse(state *State, line string) *State {
+    if (strings.TrimSpace(line) == "") {
+        return state
+    }
     parts := strings.Split(line, " ")
 
-    if parts[0] == "setup_map" {
-        if parts[1] == "super_regions" {
+    switch parts[0] {
+    case "setup_map":
+        state.raw_start = append(state.raw_start, line)
+        switch parts[1] {
+        case "super_regions":
             state.super_regions = make(map[int64]*SuperRegion)
             for i := 2; i < len(parts); i += 2 {
                 id, _ := strconv.ParseInt(parts[i], 10, 0)
@@ -304,7 +336,7 @@ func parse(state *State, line string) *State {
 
                 state.super_regions[id] = &SuperRegion{id: id, reward: reward}
             }
-        } else if parts[1] == "regions" {
+        case "regions":
             state.regions = make(map[int64]*Region)
             for i := 2; i < len(parts); i += 2 {
                 region_id, _ := strconv.ParseInt(parts[i], 10, 0)
@@ -320,7 +352,7 @@ func parse(state *State, line string) *State {
                 state.regions[region_id] = region
                 super_region.regions = append(super_region.regions, region)
             }
-        } else if parts[1] == "neighbors" {
+        case "neighbors":
             for i := 2; i < len(parts); i += 2 {
                 region_id, _ := strconv.ParseInt(parts[i], 10, 0)
                 neighbour_ids := strings.Split(parts[i+1], ",")
@@ -334,20 +366,31 @@ func parse(state *State, line string) *State {
                     neighbour.neighbours = append(neighbour.neighbours, region)
                 }
             }
-        } else if parts[1] == "wastelands" {
+        case "wastelands":
             for i := 2; i < len(parts); i++ {
                 region_id, _ := strconv.ParseInt(parts[i], 10, 0)
 
                 region := state.regions[region_id]
                 region.armies = 6
             }
-        } else {
+        default:
             log.Fatal(fmt.Sprintf("Don't recognise: %s\n", line))
         }
-    } else {
+    case "settings":
+        switch parts[1] {
+        case "max_rounds":
+            state.max_rounds, _ = strconv.ParseInt(parts[2], 10, 0)
+        case "starting_pick_amount":
+            state.starting_pick_amount, _ = strconv.ParseInt(parts[2], 10, 0)
+        case "starting_regions":
+            state.starting_regions = make([]int64, len(parts)-2)
+            for i := 2; i < len(parts); i++ {
+                state.starting_regions[i-2], _ = strconv.ParseInt(parts[i], 10, 0)
+            }
+        }
+    default:
         log.Fatal(fmt.Sprintf("Don't recognise: %s\n", line))
     }
-
     return state
 }
 
